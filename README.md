@@ -20,9 +20,9 @@ Other possible application scenarios are mentioned [here](https://developers.goo
 We decided to combine the existing functionalities provided by the original libjingle and extend them to a new model in which the 'caller' can initiate a session which is similar to existing phone call session but once the session is established the actual data is unidirectional streamable music data from the remote peer, thus enabling real-time music streaming to the caller, based on this model a libjingle-powered real-time music stream player will be made possible.
  
 The output of this project include following three modules:
-* **vuece-libjingle library** - The core library that drives the customized real-time streaming protocol
-* **Vuece Music Controller** - an Android application that uses vuece-libjingle as the streaming engine and interacts with user like a normal music player, user guide and some screenshots can be found [here](http://www.vuece.com/hub.html)
-* **Vuecd Hub** - A windows application which hosts and streams music files using vuece-libjingle, detailed user guide and some screenshots can be found [here](http://www.vuece.com/music.html)
+* **vuece-libjingle library** - The core library that drives the real-time streaming protocol
+* **Vuece Music Controller** - an Android application that uses vuece-libjingle as the streaming engine and interacts with user like a normal music player, user guide and screenshots can be found [here](http://www.vuece.com/hub.html)
+* **Vuecd Hub** - A windows application which hosts and streams music files using vuece-libjingle, detailed user guide and screenshots can be found [here](http://www.vuece.com/music.html)
 
 The website hosting the applications is also a GitHub open-source project - [vuece.github.io](https://github.com/vuece/vuece.github.io)
 
@@ -38,10 +38,10 @@ The website hosting the applications is also a GitHub open-source project - [vue
 * The [Android.mk file](vuece-libjingle/libjingle/Android.mk) contains all compilation configurations and listing of source files that will be compiled into the library
 * Most of the customized source files use 'Vuece' has the file name prefix
 * You might be interested in the following customized components under *talk/session/fileshare/* directory
- * **Vuece Stream Engine** - This module chains 3 components to form a channel that the real-time data will flow through 
-   * **Vuece Media Data Bumper** - continuously reads encoded audio data frames and 'bumps' them to it's adjacent module for decoding, frame by frame
-   * **Vuece AAC Decoder** - continuously reads and decodes frames received from the data bumper, the decoded frames flows into its adjacent module for audio frame writing
-   * **Vuece Audio Writer** - the end of the streaming chain, it writes the audio data to the Audio Player through JNI callback
+    * **Vuece Stream Engine** - This module chains 3 components to form a channel that the real-time data will flow through 
+    * **Vuece Media Data Bumper** - continuously reads encoded audio data frames and 'bumps' them to it's adjacent module for decoding, frame by frame
+    * **Vuece AAC Decoder** - continuously reads and decodes frames received from the data bumper, the decoded frames flows into its adjacent module for audio frame writing
+    * **Vuece Audio Writer** - the end of the streaming chain, it writes the audio data to the Audio Player through JNI callback
 
 
 ## Authors
