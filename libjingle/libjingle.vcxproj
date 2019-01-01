@@ -1,0 +1,473 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0F7FDCE5-D545-4212-B3CF-FA4312A0B7BA}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>libjingle</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\..\vuece-hub-win\Vuece Libraries.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\..\vuece-hub-win\Vuece Libraries.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_WIN32_WINNT=0x0501;_DEBUG;_LIB;XML_STATIC;FEATURE_ENABLE_SSL;SSL_USE_OPENSSL;HAVE_OPENSSL_SSL_H;HAVE_WINDOWS_H;OPENSSL_NO_X509;__STDC_CONSTANT_MACROS;__SSE__;ARCH_X86=1;PTW32_STATIC_LIB;HAVE_X264;COMPILER_MSVC;EXPAT_RELATIVE_PATH;VUECE_APP_ROLE_HUB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir);C:\OpenSSL-Win32\include;$(VueceExternals)expat\;$(VueceExternals)libudev\;$(VueceClientCoreLocation);$(ProjectDir)talk;$(ProjectDir)talk\base;$(ProjectDir)talk\p2p\base;$(ProjectDir)talk\p2p\client;$(ProjectDir)talk\session;$(ProjectDir)talk\session\fileshare;$(ProjectDir)talk\session\tunnel;$(ProjectDir)talk\xmllite;$(ProjectDir)talk\xmpp;$(VueceExternals)jthread\src;$(SolutionDir)direct264\x264;$(SolutionDir)direct264\x264\build\win32;$(SolutionDir)direct264\x264\common;$(VueceExternals)win;$(VueceExternals)win\ffmpeg\include;$(VueceExternals)win\ffmpeg\include\libavcodec;$(VueceExternals)win\ffmpeg\include\libavcore;$(VueceExternals)win\ffmpeg\include\libavdevice;$(VueceExternals)win\ffmpeg\include\libavfilter;$(VueceExternals)win\ffmpeg\include\libavformat;$(VueceExternals)win\ffmpeg\include\libavutil;$(VueceExternals)win\ffmpeg\\include\libswscale;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <UndefinePreprocessorDefinitions>
+      </UndefinePreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <DisableSpecificWarnings>4996;4018;4244;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <CompileAsManaged>false</CompileAsManaged>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <MinimalRebuild>false</MinimalRebuild>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(DXSDK_DIR)Lib\x86</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;_LIB;_WINDOWS;_WIN32_WINNT=0x0501;XML_STATIC;FEATURE_ENABLE_SSL;SSL_USE_OPENSSL;HAVE_OPENSSL_SSL_H;HAVE_WINDOWS_H;OPENSSL_NO_X509;__STDC_CONSTANT_MACROS;__SSE__;ARCH_X86=1;PTW32_STATIC_LIB;COMPILER_MSVC;EXPAT_RELATIVE_PATH;VUECE_APP_ROLE_HUB;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir);C:\OpenSSL-Win32\include;$(VueceExternals)expat\;$(VueceExternals)libudev\;$(VueceExternals)libsrtp\include;$(VueceExternals)libsrtp\crypto\include;$(VueceClientCoreLocation);$(ProjectDir)talk;$(ProjectDir)talk\base;$(ProjectDir)talk\p2p\base;$(ProjectDir)talk\p2p\client;$(ProjectDir)talk\session;$(ProjectDir)talk\session\fileshare;$(ProjectDir)talk\session\tunnel;$(ProjectDir)talk\xmllite;$(ProjectDir)talk\xmpp;$(SolutionDir)iLBC\ilbc-rfc3951;$(VueceExternals)jthread\src;$(SolutionDir)direct264\x264;$(SolutionDir)direct264\x264\build\win32;$(SolutionDir)direct264\x264\common;$(VueceExternals)mediastreamer-2.8.2\include;$(VueceExternals)oRTP\include;$(VueceExternals)jrtp\src;$(VueceExternals)win;$(VueceExternals)win\ffmpeg\include;$(VueceExternals)win\ffmpeg\include\libavcodec;$(VueceExternals)win\ffmpeg\include\libavcore;$(VueceExternals)win\ffmpeg\include\libavdevice;$(VueceExternals)win\ffmpeg\include\libavfilter;$(VueceExternals)win\ffmpeg\include\libavformat;$(VueceExternals)win\ffmpeg\include\libavutil;$(VueceExternals)win\ffmpeg\\include\libswscale;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <DisableSpecificWarnings>4996;4018;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <None Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="talk\base\asyncfile.cc" />
+    <ClCompile Include="talk\base\asynchttprequest.cc" />
+    <ClCompile Include="talk\base\asyncpacketsocket.cc" />
+    <ClCompile Include="talk\base\asyncsocket.cc" />
+    <ClCompile Include="talk\base\asynctcpsocket.cc" />
+    <ClCompile Include="talk\base\asyncudpsocket.cc" />
+    <ClCompile Include="talk\base\autodetectproxy.cc" />
+    <ClCompile Include="talk\base\base64.cc" />
+    <ClCompile Include="talk\base\bytebuffer.cc" />
+    <ClCompile Include="talk\base\checks.cc" />
+    <ClCompile Include="talk\base\common.cc" />
+    <ClCompile Include="talk\base\diskcache.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\event.cc" />
+    <ClCompile Include="talk\base\fileutils.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\firewallsocketserver.cc" />
+    <ClCompile Include="talk\base\flags.cc" />
+    <ClCompile Include="talk\base\helpers.cc" />
+    <ClCompile Include="talk\base\host.cc" />
+    <ClCompile Include="talk\base\httpbase.cc" />
+    <ClCompile Include="talk\base\httpclient.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\httpcommon.cc" />
+    <ClCompile Include="talk\base\httprequest.cc" />
+    <ClCompile Include="talk\base\httpserver.cc" />
+    <ClCompile Include="talk\base\latebindingsymboltable.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\linux.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\logging.cc" />
+    <ClCompile Include="talk\base\macconversion.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\macutils.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\md5c.c" />
+    <ClCompile Include="talk\base\messagehandler.cc" />
+    <ClCompile Include="talk\base\messagequeue.cc" />
+    <ClCompile Include="talk\base\nethelpers.cc" />
+    <ClCompile Include="talk\base\network.cc" />
+    <ClCompile Include="talk\base\openssladapter.cc" />
+    <ClCompile Include="talk\base\opensslidentity.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\opensslstreamadapter.cc" />
+    <ClCompile Include="talk\base\pathutils.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\physicalsocketserver.cc" />
+    <ClCompile Include="talk\base\proxydetect.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\proxyinfo.cc" />
+    <ClCompile Include="talk\base\ratetracker.cc" />
+    <ClCompile Include="talk\base\schanneladapter.cc" />
+    <ClCompile Include="talk\base\signalthread.cc" />
+    <ClCompile Include="talk\base\socketadapters.cc" />
+    <ClCompile Include="talk\base\socketaddress.cc" />
+    <ClCompile Include="talk\base\socketaddresspair.cc" />
+    <ClCompile Include="talk\base\socketpool.cc" />
+    <ClCompile Include="talk\base\socketstream.cc" />
+    <ClCompile Include="talk\base\ssladapter.cc" />
+    <ClCompile Include="talk\base\sslidentity.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\sslsocketfactory.cc" />
+    <ClCompile Include="talk\base\sslstreamadapter.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\stream.cc" />
+    <ClCompile Include="talk\base\streamutils.cc" />
+    <ClCompile Include="talk\base\stringdigest.cc" />
+    <ClCompile Include="talk\base\stringencode.cc" />
+    <ClCompile Include="talk\base\stringutils.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\tarstream.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\task.cc" />
+    <ClCompile Include="talk\base\taskparent.cc" />
+    <ClCompile Include="talk\base\taskrunner.cc" />
+    <ClCompile Include="talk\base\thread.cc" />
+    <ClCompile Include="talk\base\timeutils.cc" />
+    <ClCompile Include="talk\base\timing.cc" />
+    <ClCompile Include="talk\base\unixfilesystem.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\base\urlencode.cc" />
+    <ClCompile Include="talk\base\win32.cc" />
+    <ClCompile Include="talk\base\win32filesystem.cc">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
+    </ClCompile>
+    <ClCompile Include="talk\base\win32securityerrors.cc" />
+    <ClCompile Include="talk\base\win32socketinit.cc" />
+    <ClCompile Include="talk\base\win32socketserver.cc" />
+    <ClCompile Include="talk\base\win32window.cc" />
+    <ClCompile Include="talk\base\winfirewall.cc" />
+    <ClCompile Include="talk\base\winping.cc" />
+    <ClCompile Include="talk\p2p\base\p2pconstants.cc" />
+    <ClCompile Include="talk\p2p\base\p2ptransport.cc" />
+    <ClCompile Include="talk\p2p\base\p2ptransportchannel.cc" />
+    <ClCompile Include="talk\p2p\base\parsing.cc" />
+    <ClCompile Include="talk\p2p\base\port.cc" />
+    <ClCompile Include="talk\p2p\base\pseudotcp.cc" />
+    <ClCompile Include="talk\p2p\base\rawtransport.cc" />
+    <ClCompile Include="talk\p2p\base\rawtransportchannel.cc" />
+    <ClCompile Include="talk\p2p\base\relayport.cc" />
+    <ClCompile Include="talk\p2p\base\relayserver.cc" />
+    <ClCompile Include="talk\p2p\base\relayserver_main.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\p2p\base\session.cc" />
+    <ClCompile Include="talk\p2p\base\sessiondescription.cc" />
+    <ClCompile Include="talk\p2p\base\sessionmanager.cc" />
+    <ClCompile Include="talk\p2p\base\sessionmessages.cc" />
+    <ClCompile Include="talk\p2p\base\stun.cc" />
+    <ClCompile Include="talk\p2p\base\stunport.cc" />
+    <ClCompile Include="talk\p2p\base\stunrequest.cc" />
+    <ClCompile Include="talk\p2p\base\stunserver.cc" />
+    <ClCompile Include="talk\p2p\base\stunserver_main.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\p2p\base\tcpport.cc" />
+    <ClCompile Include="talk\p2p\base\transport.cc" />
+    <ClCompile Include="talk\p2p\base\transportchannel.cc" />
+    <ClCompile Include="talk\p2p\base\transportchannelproxy.cc" />
+    <ClCompile Include="talk\p2p\base\udpport.cc" />
+    <ClCompile Include="talk\p2p\client\basicportallocator.cc" />
+    <ClCompile Include="talk\p2p\client\httpportallocator.cc" />
+    <ClCompile Include="talk\p2p\client\socketmonitor.cc" />
+    <ClCompile Include="talk\session\fileshare\VueceFileShareSessionClient.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\fileshare\VueceMediaStream.cc" />
+    <ClCompile Include="talk\session\fileshare\VueceMediaStreamSession.cc" />
+    <ClCompile Include="talk\session\fileshare\VueceMediaStreamSessionClient.cc" />
+    <ClCompile Include="talk\session\fileshare\VueceShareCommon.cc" />
+    <ClCompile Include="talk\session\phone\audiomonitor.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\call.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\channel.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\channelmanager.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\codec.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\devicemanager.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\filemediaengine.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\libudevsymboltable.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\mediaengine.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\mediamonitor.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\mediasessionclient.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\rtcpmuxfilter.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\rtpdump.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\soundclip.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\srtpfilter.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\v4llookup.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\session\phone\vuece\VueceDevVidUtils.cc" />
+    <ClCompile Include="talk\session\tunnel\pseudotcpchannel.cc" />
+    <ClCompile Include="talk\session\tunnel\securetunnelsessionclient.cc" />
+    <ClCompile Include="talk\session\tunnel\tunnelsessionclient.cc" />
+    <ClCompile Include="talk\xmllite\qname.cc" />
+    <ClCompile Include="talk\xmllite\xmlbuilder.cc" />
+    <ClCompile Include="talk\xmllite\xmlconstants.cc" />
+    <ClCompile Include="talk\xmllite\xmlelement.cc" />
+    <ClCompile Include="talk\xmllite\xmlnsstack.cc" />
+    <ClCompile Include="talk\xmllite\xmlparser.cc" />
+    <ClCompile Include="talk\xmllite\xmlprinter.cc" />
+    <ClCompile Include="talk\xmpp\constants.cc" />
+    <ClCompile Include="talk\xmpp\iqtask.cc" />
+    <ClCompile Include="talk\xmpp\jid.cc" />
+    <ClCompile Include="talk\xmpp\mucroomlookuptask.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="talk\xmpp\ratelimitmanager.cc" />
+    <ClCompile Include="talk\xmpp\saslmechanism.cc" />
+    <ClCompile Include="talk\xmpp\xmppauth.cc" />
+    <ClCompile Include="talk\xmpp\xmppclient.cc" />
+    <ClCompile Include="talk\xmpp\xmppengineimpl.cc" />
+    <ClCompile Include="talk\xmpp\xmppengineimpl_iq.cc" />
+    <ClCompile Include="talk\xmpp\xmpplogintask.cc" />
+    <ClCompile Include="talk\xmpp\xmpppump.cc" />
+    <ClCompile Include="talk\xmpp\xmppsocket.cc" />
+    <ClCompile Include="talk\xmpp\xmppstanzaparser.cc" />
+    <ClCompile Include="talk\xmpp\xmpptask.cc" />
+    <ClCompile Include="talk\xmpp\xmppthread.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="talk\base\asyncfile.h" />
+    <ClInclude Include="talk\base\asynchttprequest.h" />
+    <ClInclude Include="talk\base\asyncpacketsocket.h" />
+    <ClInclude Include="talk\base\asyncsocket.h" />
+    <ClInclude Include="talk\base\asynctcpsocket.h" />
+    <ClInclude Include="talk\base\asyncudpsocket.h" />
+    <ClInclude Include="talk\base\autodetectproxy.h" />
+    <ClInclude Include="talk\base\base64.h" />
+    <ClInclude Include="talk\base\basicdefs.h" />
+    <ClInclude Include="talk\base\basictypes.h" />
+    <ClInclude Include="talk\base\buffer.h" />
+    <ClInclude Include="talk\base\bytebuffer.h" />
+    <ClInclude Include="talk\base\byteorder.h" />
+    <ClInclude Include="talk\base\checks.h" />
+    <ClInclude Include="talk\base\common.h" />
+    <ClInclude Include="talk\base\constructormagic.h" />
+    <ClInclude Include="talk\base\criticalsection.h" />
+    <ClInclude Include="talk\base\cryptstring.h" />
+    <ClInclude Include="talk\base\diskcache.h" />
+    <ClInclude Include="talk\base\Equifax_Secure_Global_eBusiness_CA-1.h" />
+    <ClInclude Include="talk\base\event.h" />
+    <ClInclude Include="talk\base\fileutils.h" />
+    <ClInclude Include="talk\base\firewallsocketserver.h" />
+    <ClInclude Include="talk\base\flags.h" />
+    <ClInclude Include="talk\base\helpers.h" />
+    <ClInclude Include="talk\base\host.h" />
+    <ClInclude Include="talk\base\httpbase.h" />
+    <ClInclude Include="talk\base\httpclient.h" />
+    <ClInclude Include="talk\base\httpcommon-inl.h" />
+    <ClInclude Include="talk\base\httpcommon.h" />
+    <ClInclude Include="talk\base\httprequest.h" />
+    <ClInclude Include="talk\base\latebindingsymboltable.h" />
+    <ClInclude Include="talk\base\linked_ptr.h" />
+    <ClInclude Include="talk\base\linux.h" />
+    <ClInclude Include="talk\base\logging.h" />
+    <ClInclude Include="talk\base\macconversion.h" />
+    <ClInclude Include="talk\base\macutils.h" />
+    <ClInclude Include="talk\base\md5.h" />
+    <ClInclude Include="talk\base\messagehandler.h" />
+    <ClInclude Include="talk\base\messagequeue.h" />
+    <ClInclude Include="talk\base\nethelpers.h" />
+    <ClInclude Include="talk\base\network.h" />
+    <ClInclude Include="talk\base\openssladapter.h" />
+    <ClInclude Include="talk\base\opensslidentity.h" />
+    <ClInclude Include="talk\base\opensslstreamadapter.h" />
+    <ClInclude Include="talk\base\pathutils.h" />
+    <ClInclude Include="talk\base\physicalsocketserver.h" />
+    <ClInclude Include="talk\base\proxydetect.h" />
+    <ClInclude Include="talk\base\proxyinfo.h" />
+    <ClInclude Include="talk\base\ratetracker.h" />
+    <ClInclude Include="talk\base\schanneladapter.h" />
+    <ClInclude Include="talk\base\scoped_ptr.h" />
+    <ClInclude Include="talk\base\sec_buffer.h" />
+    <ClInclude Include="talk\base\signalthread.h" />
+    <ClInclude Include="talk\base\sigslot.h" />
+    <ClInclude Include="talk\base\sigslotrepeater.h" />
+    <ClInclude Include="talk\base\socket.h" />
+    <ClInclude Include="talk\base\socketadapters.h" />
+    <ClInclude Include="talk\base\socketaddress.h" />
+    <ClInclude Include="talk\base\socketaddresspair.h" />
+    <ClInclude Include="talk\base\socketfactory.h" />
+    <ClInclude Include="talk\base\socketpool.h" />
+    <ClInclude Include="talk\base\socketserver.h" />
+    <ClInclude Include="talk\base\socketstream.h" />
+    <ClInclude Include="talk\base\ssladapter.h" />
+    <ClInclude Include="talk\base\sslidentity.h" />
+    <ClInclude Include="talk\base\sslsocketfactory.h" />
+    <ClInclude Include="talk\base\sslstreamadapter.h" />
+    <ClInclude Include="talk\base\stream.h" />
+    <ClInclude Include="talk\base\stringdigest.h" />
+    <ClInclude Include="talk\base\stringencode.h" />
+    <ClInclude Include="talk\base\stringutils.h" />
+    <ClInclude Include="talk\base\task.h" />
+    <ClInclude Include="talk\base\taskparent.h" />
+    <ClInclude Include="talk\base\taskrunner.h" />
+    <ClInclude Include="talk\base\thread.h" />
+    <ClInclude Include="talk\base\timex.h" />
+    <ClInclude Include="talk\base\unixfilesystem.h" />
+    <ClInclude Include="talk\base\urlencode.h" />
+    <ClInclude Include="talk\base\win32.h" />
+    <ClInclude Include="talk\base\win32filesystem.h" />
+    <ClInclude Include="talk\base\win32socketinit.h" />
+    <ClInclude Include="talk\base\win32socketserver.h" />
+    <ClInclude Include="talk\base\win32window.h" />
+    <ClInclude Include="talk\base\winfirewall.h" />
+    <ClInclude Include="talk\base\winping.h" />
+    <ClInclude Include="talk\session\fileshare\VueceFileShareSession.h" />
+    <ClInclude Include="talk\session\fileshare\VueceFileShareSessionClient.h" />
+    <ClInclude Include="talk\session\fileshare\VueceMediaStreamSession.h" />
+    <ClInclude Include="talk\session\fileshare\VueceMediaStreamSessionClient.h" />
+    <ClInclude Include="talk\session\fileshare\VueceShareCommon.h" />
+    <ClInclude Include="talk\xmpp\asyncsocket.h" />
+    <ClInclude Include="talk\xmpp\constants.h" />
+    <ClInclude Include="talk\xmpp\iqtask.h" />
+    <ClInclude Include="talk\xmpp\jid.h" />
+    <ClInclude Include="talk\xmpp\mucroomlookuptask.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="talk\xmpp\plainsaslhandler.h" />
+    <ClInclude Include="talk\xmpp\prexmppauth.h" />
+    <ClInclude Include="talk\xmpp\ratelimitmanager.h" />
+    <ClInclude Include="talk\xmpp\saslcookiemechanism.h" />
+    <ClInclude Include="talk\xmpp\saslhandler.h" />
+    <ClInclude Include="talk\xmpp\saslmechanism.h" />
+    <ClInclude Include="talk\xmpp\saslplainmechanism.h" />
+    <ClInclude Include="talk\xmpp\xmppauth.h" />
+    <ClInclude Include="talk\xmpp\xmppclient.h" />
+    <ClInclude Include="talk\xmpp\xmppclientsettings.h" />
+    <ClInclude Include="talk\xmpp\xmppengine.h" />
+    <ClInclude Include="talk\xmpp\xmppengineimpl.h" />
+    <ClInclude Include="talk\xmpp\xmpplogintask.h" />
+    <ClInclude Include="talk\xmpp\xmpppump.h" />
+    <ClInclude Include="talk\xmpp\xmppsocket.h" />
+    <ClInclude Include="talk\xmpp\xmppstanzaparser.h" />
+    <ClInclude Include="talk\xmpp\xmpptask.h" />
+    <ClInclude Include="talk\xmpp\xmppthread.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

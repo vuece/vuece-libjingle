@@ -1,0 +1,20 @@
+Current version: 
+
+openssl-1.0.1p
+
+How to check lib architecture:
+
+readelf -h ./libcrypto.a | grep -i 'class\|machine' | head -2
+
+How to build
+
+1. Download latest OpenSSL source from: https://www.openssl.org/source/
+
+2. Download OpenSSL build wrapper script from: 
+https://github.com/alexbbb/pjsip-android-builder/blob/master/openssl-build
+
+3. Check the usage of the build wrapper script, run command like this:
+
+./openssl-build /home/jingjing/software/android-ndk-r8 /home/jingjing/Downloads/openssl_build/openssl-1.0.1p 8 armeabi-v7a 4.4.3 /home/jingjing/Downloads/openssl_build/out
+
+4. Copy the output libraries and the include folder (libssl.a and libcrypto.a) to vuece-libjingle/externals/android/openssl

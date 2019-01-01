@@ -1,10 +1,10 @@
 # Vuece libjingle
 
-A customized and extended libjingle library that support real-time music streaming and playing!
+A customized and extended **libjingle** library that supports real-time music streaming and playing!
 
 
 **vuece-libjingle** is a customized and extended version of the original [Google's libjingle library](https://developers.google.com/talk/libjingle/developer_guide), it is the core library that is driving
-a real-time music steaming protocol developed for our Android application Vuece Music Player and the 
+a real-time music steaming protocol developed for our Android application **Vuece Music Player** and the 
 music file hosting application [Vuece Hub](http://www.vuece.com/). 
 
 
@@ -31,8 +31,7 @@ The website hosting the applications is also a GitHub open-source project - [vue
 
 ### Prerequisites
 * Please get familiar with the official Google libjingle
-* **vuece-libjingle** needs to be compiled in a Linux environment using [Android NDK](https://developer.android.com/ndk/) command line build tool. Since my host environment is Windows, I used Virtualbox with Ubuntu to develop and build the native
-library.
+* **vuece-libjingle** needs to be compiled in a Linux environment using [Android NDK](https://developer.android.com/ndk/) command line build tool. Since my host environment is Windows, I used **Virtualbox** with **Ubuntu** to develop and build the native library.
 
 
 ### Source Code and Vuece Stream Engine
@@ -46,5 +45,5 @@ library.
 
 
 ## Authors
-Jingjing Sun - please contact me via [Linkedin](https://www.linkedin.com/in/jjsun001) if you need any further information.
+Jingjing Sun - please drop a comment or contact me via [Linkedin](https://www.linkedin.com/in/jjsun001) if you need any further information.
 

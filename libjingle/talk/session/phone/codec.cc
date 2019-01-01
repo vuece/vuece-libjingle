@@ -1,0 +1,108 @@
+/*
+ * libjingle
+ * Copyright 2004--2007, Google Inc.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *  1. Redistributions of source code must retain the above copyright notice,
+ *     this list of conditions and the following disclaimer.
+ *  2. Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
+ *     and/or other materials provided with the distribution.
+ *  3. The name of the author may not be used to endorse or promote products
+ *     derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "talk/session/phone/codec.h"
+#include "talk/base/logging.h"
+#include <sstream>
+
+namespace cricket {
+
+//static const int kMaxStaticPayloadId = 95;
+static const int kMaxStaticPayloadId = 106; // changed to 106 to include ilbc
+
+bool AudioCodec::Matches(int payload, const std::string& nm) const {
+  // Match the codec id/name based on the typical static/dynamic name rules.
+  return (payload <= kMaxStaticPayloadId) ? (id == payload) : (name == nm);
+}
+
+bool AudioCodec::Matches(const AudioCodec& codec) const {
+  // If a nonzero clockrate is specified, it must match the actual clockrate.
+  // If a nonzero bitrate is specified, it must match the actual bitrate,
+  // unless the codec is VBR (-1), where we just force the supplied value.
+  // The number of channels must match exactly.
+  // Preference is ignored.
+  // TODO: Treat a zero clockrate as 8000Hz, the RTP default clockrate.
+
+//	if(! Matches(codec.id, codec.name))
+//	{
+//		LOG(WARNING) << "id or name doesn't match";
+//	}
+//
+//	if(!((codec.clockrate == 0 /*&& clockrate == 8000*/) || clockrate == codec.clockrate))
+//	{
+//		LOG(WARNING) << "clockrate doesn't match";
+//	}
+//
+//	if(!(codec.bitrate == 0 || bitrate == -1 || bitrate == codec.bitrate))
+//	{
+//		LOG(WARNING) << "bitrate doesn't match";
+//	}
+//
+//	if(!(codec.channels == 0 || channels == codec.channels))
+//	{
+//		LOG(WARNING) << "channel number doesn't match";
+//	}
+
+  return Matches(codec.id, codec.name) &&
+      ((codec.clockrate == 0 /*&& clockrate == 8000*/) || clockrate == codec.clockrate) &&
+      (codec.bitrate == 0 || bitrate == -1 || bitrate == codec.bitrate) &&
+      (codec.channels == 0 || channels == codec.channels);
+}
+
+std::string AudioCodec::ToString() const {
+  std::ostringstream os;
+  os << "AudioCodec[" << id << ":" << name << ":" << clockrate << ":" << bitrate
+     << ":" << channels << ":" << preference << "]";
+  return os.str();
+}
+
+bool VideoCodec::Matches(int payload, const std::string& nm) const {
+//	LOG(WARNING) << "VideoCodec::Matches:Matching payload type";
+  // Match the codec id/name based on the typical static/dynamic name rules.
+  return (payload <= kMaxStaticPayloadId) ? (id == payload) : (name == nm);
+
+	//JJ - Need to re-write the matching rule?
+//	if(payload <= kMaxStaticPayloadId){
+//		return (id == payload);
+//	}else{
+//		std::transform(name.begin(), name.end(), name.begin(), ::toupper);
+//	}
+}
+
+bool VideoCodec::Matches(const VideoCodec& codec) const {
+  // Only the id and name are matched.
+  return Matches(codec.id, codec.name);
+}
+
+std::string VideoCodec::ToString() const {
+  std::ostringstream os;
+  os << "VideoCodec[" << id << ":" << name << ":" << width << ":" << height
+     << ":" << framerate << ":" << preference << "]";
+  return os.str();
+}
+
+}  // namespace cricket

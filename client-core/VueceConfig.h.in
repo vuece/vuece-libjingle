@@ -1,0 +1,38 @@
+/*
+ * VueceConfig.h
+ *
+ *  Created on: 2015-9-27
+ *      Author: Jingjing Sun
+ */
+
+#ifndef VUECECONFIG_H_
+#define VUECECONFIG_H_
+
+/*
+ * Number of frames per chunk file, one frame is usually 20ms
+ */
+#define VUECE_AUDIO_FRAMES_PER_CHUNK @VUECE_AUDIO_FRAMES_PER_CHUNK@
+
+/*
+ * Number of chunk files that will be downloaded in each stream session
+ */
+#define VUECE_BUFFER_WINDOW @VUECE_BUFFER_WINDOW@
+
+//Trigger new download when 30 seconds data left
+#define VUECE_BUFWIN_THRESHOLD_SEC @VUECE_BUFWIN_THRESHOLD_SEC@
+
+//This is used to filter away large file if its size is above predefined value
+#define VUECE_MAX_MUSIC_FILE_SIZE_MB 			@VUECE_MAX_MUSIC_FILE_SIZE_MB@
+
+//This is used to filter away small files if the duration is below predefined value
+#define VUECE_MIN_MUSIC_DURATION_SEC         @VUECE_MIN_MUSIC_DURATION_SEC@
+
+#define VUECE_TIMEOUT_WAIT_SESSION_RELEASED @VUECE_TIMEOUT_WAIT_SESSION_RELEASED@
+
+#define VUECE_SESSION_MGR_TIMEOUT  @VUECE_SESSION_MGR_TIMEOUT@
+
+#define VUECE_UPDATE_SERVER_URL @VUECE_UPDATE_SERVER_URL@
+#define VUECE_UPDATE_SERVER_PORT @VUECE_UPDATE_SERVER_PORT@
+#define VUECE_UPDATE_VERSION_INFO_LOCATION @VUECE_UPDATE_VERSION_INFO_LOCATION@
+
+#endif /* VUECECONFIG_H_ */

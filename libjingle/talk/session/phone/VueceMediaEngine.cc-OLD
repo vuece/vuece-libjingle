@@ -1,0 +1,1413 @@
+
+#ifndef MSILBC_LIBRARY
+#define MSILBC_LIBRARY "/usr/lib/mediastreamer/plugins/libmsilbc.so"
+#endif
+
+// VueceMediaEngine is a Linphone implementation of MediaEngine
+extern "C" {
+#include <mediastreamer2/msrtp.h>
+#include <mediastreamer2/mediastream.h>
+#include <mediastreamer2/mssndcard.h>
+#include <mediastreamer2/msfilter.h>
+#include <mediastreamer2/mscommon.h>
+#include <mediastreamer2/msfilter.h>
+#include <mediastreamer2/vuecefilestreamplayer.h>
+#include <mediastreamer2/vuecemscommon.h>
+}
+
+#include "talk/session/phone/VueceMediaEngine.h"
+
+#include "talk/base/buffer.h"
+#include "talk/base/event.h"
+#include "talk/base/logging.h"
+#include "talk/base/pathutils.h"
+#include "talk/base/stream.h"
+#include "talk/session/phone/rtpdump.h"
+#include "talk/base/logging.h"
+
+#include "rtppacket.h"
+#include "rtprawpacket.h"
+#include "talk/session/phone/vuece/VueceDevVidUtils.h"
+
+#include "VueceGlobalSetting.h"
+
+#if defined(ANDROID)
+extern "C"
+{
+#include "avcodec.h"
+}
+#endif
+
+#ifndef WIN32
+#include <libgen.h>
+#endif
+
+#define LOCAL_RTP_PORT_AUDIO 		2000
+#define LOCAL_PORT_OUTGOING_AUDIO 	3000
+#define REMOTE_IP 					"127.0.0.1"
+
+#if defined(WIN32)
+#define LOCAL_RTP_PORT_VIDEO		6000
+#endif
+
+#if defined(ANDROID)
+#define LOCAL_RTP_PORT_VIDEO		4000
+#include <android/log.h>
+#endif
+
+#define LOCAL_PORT_OUTGOING_VIDEO	5000
+
+#define VUECE_RTP_PAYLOAD_TYPE_H264 			97
+
+#ifdef HAVE_AMR
+extern "C" void libmsamr_init();
+#endif
+
+#ifdef HAVE_X264
+extern "C" void libmsx264_init();
+#endif
+
+extern "C" void libmsilbc_init();
+
+extern struct VueceVideoStream *iVideoStream;
+extern struct VueceGlobalSetting *iVueceGlobalSetting;
+
+static AudioStream* StartFullAudioStream(RtpProfile *prof,int locport,const char *remip,int remport,int profile,int jitt_comp,bool_t use_ec);
+static void FreeAudioStream(AudioStream *stream);
+
+void FreeAudioStream(AudioStream *stream)
+{
+	if (stream->session!=NULL) {
+		rtp_session_unregister_event_queue(stream->session,stream->evq);
+		rtp_session_destroy(stream->session);
+	}
+	if (stream->evq) ortp_ev_queue_destroy(stream->evq);
+	if (stream->rtpsend!=NULL) ms_filter_destroy(stream->rtpsend);
+	if (stream->rtprecv!=NULL) ms_filter_destroy(stream->rtprecv);
+	if (stream->soundread!=NULL) ms_filter_destroy(stream->soundread);
+	if (stream->soundwrite!=NULL) ms_filter_destroy(stream->soundwrite);
+	if (stream->encoder!=NULL) ms_filter_destroy(stream->encoder);
+	if (stream->decoder!=NULL) ms_filter_destroy(stream->decoder);
+	if (stream->dtmfgen!=NULL) ms_filter_destroy(stream->dtmfgen);
+	if (stream->ec!=NULL)	ms_filter_destroy(stream->ec);
+	if (stream->volrecv!=NULL) ms_filter_destroy(stream->volrecv);
+	if (stream->volsend!=NULL) ms_filter_destroy(stream->volsend);
+	if (stream->equalizer!=NULL) ms_filter_destroy(stream->equalizer);
+	if (stream->ticker!=NULL) ms_ticker_destroy(stream->ticker);
+	if (stream->read_resampler!=NULL) ms_filter_destroy(stream->read_resampler);
+	if (stream->write_resampler!=NULL) ms_filter_destroy(stream->write_resampler);
+	if (stream->dtmfgen_rtp!=NULL) ms_filter_destroy(stream->dtmfgen_rtp);
+	ms_free(stream);
+}
+
+AudioStream* StartFullAudioStream(RtpProfile *prof,int locport,const char *remip,int remport,int profile,int jitt_comp,bool_t use_ec)
+{
+	MSSndCard *sndcard_playback;
+	MSSndCard *sndcard_capture;
+	AudioStream *stream;
+
+	ms_warning("--------------------------------------------");
+	ms_warning("StartFullAudioStream");
+	ms_warning("--------------------------------------------");
+
+	sndcard_capture=ms_snd_card_manager_get_default_capture_card(ms_snd_card_manager_get());
+	sndcard_playback=ms_snd_card_manager_get_default_playback_card(ms_snd_card_manager_get());
+	if (sndcard_capture==NULL || sndcard_playback==NULL)
+		return NULL;
+
+	stream=audio_stream_new(locport, ms_is_ipv6(remip));
+
+	//configure stream properties
+	//	stream->use_gc=FALSE;
+	//	stream->use_agc=FALSE;
+	stream->use_ng=FALSE;
+	stream->use_gc=FALSE;
+	stream->use_agc=FALSE;
+	stream->el_type=ELControlMic;//ELInactive;//ELControlMic; // NOTE: JJ - ELControlFull doesn't work properly!
+
+	if (audio_stream_start_full(stream,prof,remip,remport,remport+1,profile,jitt_comp,NULL,NULL,sndcard_playback,sndcard_capture,use_ec)==0)
+	{
+		return stream;
+	}
+
+	FreeAudioStream(stream);
+	return NULL;
+}
+
+namespace cricket {
+
+static bool bVidStreamStarted = FALSE;
+static bool bSSRCSet = FALSE;
+static bool bIsVoiceCodecSet = FALSE;
+static bool bRemoteSSRCSet = FALSE;
+static char mySSRC[4];
+static int iVidRtcpSeqNum = 0;
+static uint8 _sequenceNumberFIR = 0;
+static char outGoingVideoBuf[4000];
+static char incomingVideoBuf[4000];
+static uint8 incomingAudioBuf[2048];
+static uint8 outgoingAudioBuf[2048];
+static uint32_t _localSSRC;
+static uint32_t _remoteSSRC;
+static uint32_t videoFrameCounter = 0;
+sigslot::signal0<> OutgoingSignalDanger;
+
+///////////////////////////////////////////////////////////////////////////
+// Implementation of VueceMediaEngine.
+///////////////////////////////////////////////////////////////////////////
+
+//NOTE: SPEEX codec is disabled for now as it doesn't work well - jj
+
+static unsigned short seqNo=0;
+
+VueceMediaEngine::VueceMediaEngine(const std::string& ringWav,  const std::string& callWav) : ring_wav_(ringWav), call_wav_(callWav)
+{
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+	LOG(INFO) <<("-----------------     VueceMediaEngine::Constructor()        --------------------");
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+}
+
+//TODO JJ - We need to refactor Init() method here, put codec related code
+// to another method - InitCodecList(), add codecs according to VUECE
+// working mode VueceGlobalSetting::meidaEngineWorkingMode
+
+bool VueceMediaEngine::Init() {
+
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+	LOG(INFO) <<("-----------------     VueceMediaEngine::Init()        ---------------------------");
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+
+	bIsVoiceCodecSet = FALSE;
+	bVidStreamStarted = FALSE;
+	bSSRCSet = FALSE;
+	iVidRtcpSeqNum = 0;
+	videoFrameCounter = 0;
+
+	LOG(INFO) << "VueceMediaEngine::Init:Calling ortp_init";
+	ortp_init();
+
+	LOG(INFO) << "VueceMediaEngine::Init:Calling ms_init";
+	ms_init();
+
+#ifdef _DEBUG
+	ortp_set_log_level_mask(ORTP_DEBUG|ORTP_MESSAGE|ORTP_WARNING|ORTP_ERROR|ORTP_FATAL);
+#endif
+
+	//NOTE: For voice call, we only accept NORMAL app role, otherwise we abort, it's a fatal error???
+	if(iVueceGlobalSetting->appRole != VueceAppRole_Normal)
+	{
+		ms_fatal("VueceMediaEngine::Init - Fatal error! Current app role is not NORMAL! Unaccepted app role: %d",  (int)iVueceGlobalSetting->appRole);
+		return false;
+	}
+
+	InitNormalCodecList();
+
+  return true;
+}
+
+//The following method is called by MediaSessionClient::CreateOffer->
+//ChannelManager::GetSupportedAudioCodecs when media session client instance is
+//creating an offer the remote client, here we play the trick
+const std::vector<AudioCodec>& VueceMediaEngine::audio_codecs() {
+
+//	LOG(INFO) << "VueceMediaEngine::audio_codecs()";
+//
+//	voice_codecs_.clear();
+//
+//	  if(iVideoStream->bIsVideoCall)
+//	  {
+//		  LOG(INFO) << "VueceMediaEngine::audio_codecs:This is a video call";
+//		  voice_codecs_.push_back(AudioCodec(102, payload_type_ilbc.mime_type, payload_type_ilbc.clock_rate, 13300, 1, 10));
+//		  voice_codecs_.push_back(AudioCodec(98, payload_type_speex_nb.mime_type, payload_type_speex_nb.clock_rate, 11000, 1, 9));
+//		  voice_codecs_.push_back(AudioCodec(0, payload_type_pcmu8000.mime_type, payload_type_pcmu8000.clock_rate, 64000, 1, 8));
+//		  voice_codecs_.push_back(AudioCodec(106, payload_type_telephone_event.mime_type, payload_type_telephone_event.clock_rate, 0, 1, 7));
+//		  voice_codecs_.push_back(AudioCodec(99, payload_type_speex_wb.mime_type, payload_type_speex_wb.clock_rate, 22000, 1, 6));
+//	  }
+//	  else
+//	  {
+//		  LOG(INFO) << "VueceMediaEngine::audio_codecs:This is a voice call";
+//		  voice_codecs_.push_back(AudioCodec(99, payload_type_speex_wb.mime_type, payload_type_speex_wb.clock_rate, 22000, 1, 10));
+//		  voice_codecs_.push_back(AudioCodec(102, payload_type_ilbc.mime_type, payload_type_ilbc.clock_rate, 13300, 1, 9));
+//		  voice_codecs_.push_back(AudioCodec(98, payload_type_speex_nb.mime_type, payload_type_speex_nb.clock_rate, 11000, 1, 8));
+//		  voice_codecs_.push_back(AudioCodec(0, payload_type_pcmu8000.mime_type, payload_type_pcmu8000.clock_rate, 64000, 1, 7));
+//		  voice_codecs_.push_back(AudioCodec(106, payload_type_telephone_event.mime_type, payload_type_telephone_event.clock_rate, 0, 1, 6));
+//	  }
+
+  return voice_codecs_;
+}
+
+int VueceMediaEngine::EngineState()
+{
+	return engineState;
+}
+
+void VueceMediaEngine::InitNormalCodecList()
+{
+	LOG(INFO) <<("VueceMediaEngine::InitControllerCodecList");
+
+	voice_codecs_.clear();
+	video_codecs_.clear();
+
+	///////////////////////////////////////////////
+	// See http://www.iana.org/assignments/rtp-parameters
+	// for a full list of RTP payload types
+	////////////
+
+	 #ifdef HAVE_ILBC
+		LOG(INFO) << "VueceMediaEngine::Init:Calling libmsilbc_init";
+		libmsilbc_init(); // requires an fpu
+	 #endif
+
+	 #ifdef HAVE_X264
+		LOG(INFO) << "VueceMediaEngine::Init:Calling libmsx264_init";
+		libmsx264_init();
+	 #endif
+
+		/**
+		 * POSSIBLE PAYLOAD TYPES FROM GMAIL
+		 *<pho:description xmlns:pho="http://www.google.com/session/phone">
+				<pho:payload-type id="103" name="ISAC" bitrate="32000" clockrate="16000"/>
+				<pho:payload-type id="104" name="ISAC" bitrate="56000" clockrate="32000"/>
+				<pho:payload-type id="119" name="ISACLC" bitrate="40000" clockrate="16000"/>
+				<pho:payload-type id="98" name="speex" bitrate="11000" clockrate="8000"/>
+				<pho:payload-type id="99" name="speex" bitrate="22000" clockrate="16000"/>
+				<pho:payload-type id="97" name="IPCMWB" bitrate="80000" clockrate="16000"/>
+				<pho:payload-type id="9" name="G722" bitrate="64000" clockrate="16000"/>
+				<pho:payload-type id="102" name="iLBC" bitrate="13300" clockrate="8000"/>
+
+				<pho:payload-type id="3" name="GSM" bitrate="13200" clockrate="8000"/>
+				<pho:payload-type id="100" name="EG711U" bitrate="64000" clockrate="8000"/>
+				<pho:payload-type id="101" name="EG711A" bitrate="64000" clockrate="8000"/>
+				<pho:payload-type id="0" name="PCMU" bitrate="64000" clockrate="8000"/>
+				<pho:payload-type id="8" name="PCMA" bitrate="64000" clockrate="8000"/>
+				<pho:payload-type id="117" name="red" clockrate="8000"/>
+				<pho:payload-type id="106" name="telephone-event" clockrate="8000"/>
+		  </pho:description>
+	   </ses:session>
+	   </iq>
+
+		 */
+
+	 #ifdef HAVE_ILBC
+	 #ifndef WIN32
+	   char * path = strdup(MSILBC_LIBRARY);
+	   char * dirc = dirname(path);
+	   ms_load_plugins(dirc);
+	 #endif
+	   if (ms_filter_codec_supported("iLBC"))
+		 have_ilbc = 1;
+	   else
+		 have_ilbc = 0;
+	 #else
+	   have_ilbc = 0;
+	 #endif
+
+	   //----------------------------------------------------------------------
+	   // Codec Selection Strategy
+	   // * For voice call, we put speex wide band at the top of the list, then speex narrow band, then iLBC, if speex is chosen,
+	   //   we enable echo cancellation
+	   // * For video call, we use speex narrow band as the first codec, we put speex wb at the botton of the list, if speex is chose
+	   //   we enable echo cancellation
+	   //---------------------------------------------------------------------
+
+
+	   //add supported payload types: see http://en.wikipedia.org/wiki/RTP_audio_video_profile for details
+	   //Now we actually always have speex
+	 #ifdef HAVE_SPEEX
+	   LOG(INFO) << "VueceMediaEngine:Init::We support speex.";
+	   //AudioCodec: id, name, clockrate, bitrate, channels, preference
+	   //	<pho:payload-type id="98" name="speex" bitrate="11000" clockrate="8000"/>
+	   //	<pho:payload-type id="99" name="speex" bitrate="22000" clockrate="16000"/>
+
+
+	   // if we specify bitrate as -1, that means we suppose the bitrate always match
+	 //  voice_codecs_.push_back(AudioCodec(98, payload_type_speex_nb.mime_type, payload_type_speex_nb.clock_rate, -1, 1, 7));
+	 //  voice_codecs_.push_back(AudioCodec(99, payload_type_speex_wb.mime_type, payload_type_speex_wb.clock_rate, -1, 1, 8));
+
+	 //disable speex for now
+	 //  voice_codecs_.push_back(AudioCodec(98, payload_type_speex_nb.mime_type, payload_type_speex_nb.clock_rate, 11000, 1, 9));
+	 //  voice_codecs_.push_back(AudioCodec(99, payload_type_speex_wb.mime_type, payload_type_speex_wb.clock_rate, 22000, 1, 10));
+
+	 #endif
+
+	   //we always have iLBC
+	 #ifdef HAVE_ILBC
+	   if (have_ilbc)
+	   {
+		LOG(INFO) << "VueceMediaEngine:Init::We support iLBC.";
+		//			<pho:payload-type id="102" name="iLBC" bitrate="13300" clockrate="8000"/>
+		voice_codecs_.push_back(AudioCodec(102, payload_type_ilbc.mime_type, payload_type_ilbc.clock_rate, 13300, 1, 9));
+		LOG(INFO) << "VueceMediaEngine:Init::have_ilbc is true";
+	   }
+	   else
+	   {
+		  LOG(LS_WARNING) << "VueceMediaEngine:Init::have_ilbc is false!";
+	   }
+	 #endif
+
+	   //IMPORTANT NOTE: The following code does not work with vTok's incoming voice call, must use exact bitrate: 64000
+	   //  voice_codecs_.push_back(AudioCodec(0, payload_type_pcmu8000.mime_type, payload_type_pcmu8000.clock_rate, 0, 1, 2));
+
+	   //<pho:payload-type id="0" name="PCMU" bitrate="64000" clockrate="8000"/>
+	 //	<pho:payload-type id="8" name="PCMA" bitrate="64000" clockrate="8000"/>
+
+	   voice_codecs_.push_back(AudioCodec(0, payload_type_pcmu8000.mime_type, payload_type_pcmu8000.clock_rate, 64000, 1, 8));
+	   voice_codecs_.push_back(AudioCodec(106, payload_type_telephone_event.mime_type, payload_type_telephone_event.clock_rate, 0, 1, 7));
+
+	 #ifdef HAVE_X264
+	   video_codecs_.push_back(VideoCodec(
+			  VUECE_RTP_PAYLOAD_TYPE_H264,
+			  payload_type_h264.mime_type,
+			  iVideoStream->width,
+			  iVideoStream->height,
+			  30,
+			  0));
+	 #endif
+
+}
+
+void VueceMediaEngine::Terminate() {
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+	LOG(INFO) <<("-----------------     VueceMediaEngine::Terminate()        --------------------");
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+
+	bVidStreamStarted = FALSE;
+	bSSRCSet = FALSE;
+	iVidRtcpSeqNum = 0;
+	videoFrameCounter = 0;
+
+    fflush(stdout);
+}
+
+
+int VueceMediaEngine::GetCapabilities() {
+  int capabilities = 0;
+  capabilities |= MediaEngine::AUDIO_SEND;
+  capabilities |= MediaEngine::AUDIO_RECV;
+
+  capabilities |= MediaEngine::VIDEO_SEND;
+  capabilities |= MediaEngine::VIDEO_RECV;
+
+  return capabilities;
+}
+
+VoiceMediaChannel* VueceMediaEngine::CreateChannel() {
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+	LOG(INFO) <<("-----------------     VueceMediaEngine::CreateChannel()        ------------------");
+	LOG(INFO) <<("------------------------------------------------------------------------------------");
+  return new VueceVoiceChannel(this);
+}
+
+VideoMediaChannel* VueceMediaEngine::CreateVideoChannel(VoiceMediaChannel* voice_ch) {
+	LOG(INFO) <<("VueceMediaEngine::CreateVideoChannel");
+	LOG(INFO) << "VueceMediaEngine::CreateVideoChannel";
+
+#ifdef VIDEO_ENABLED
+	LOG(INFO) <<("VueceMediaEngine::CreateVideoChannel:VIDEO_ENABLED");
+  	LOG(INFO) << "VueceMediaEngine::CreateVideoChannel:VIDEO_ENABLED";
+    return new VueceVideoChannel();
+#else
+    LOG(INFO) << "VueceMediaEngine::CreateVideoChannel:Video is not enabled, return NULL";
+    return NULL;
+#endif
+}
+
+
+bool VueceMediaEngine::FindVideoCodec(const VideoCodec& codec)
+{
+	LOG(INFO) << "VueceMediaEngine::FindVideoCodec:Finding codec:id = " << codec.id << ", name = " << codec.name;
+	LOG(INFO) << "VueceMediaEngine::FindVideoCodec:Return true as default.";
+	return true;
+}
+
+
+bool VueceMediaEngine::FindAudioCodec(const AudioCodec &c) {
+  LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Finding codec:id = " << c.id << ", name = " << c.name;
+  if (c.id == 0)
+  {
+	  LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Found codec: " << c.name << ", return true";
+	  return true;
+  }
+
+  if (c.name == payload_type_vuece_aac.mime_type)
+  {
+	  LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Found codec: " << c.name << ", return true";
+	  return true;
+  }
+
+  if (c.name == payload_type_telephone_event.mime_type)
+  {
+	  LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Found codec: " << c.name << ", return true";
+	  return true;
+  }
+
+
+  if (c.name == payload_type_speex_wb.mime_type && c.clockrate == payload_type_speex_wb.clock_rate)
+  {
+	    LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Found this codec:name: " << c.name << ", rate: " << c.clockrate;
+	    return true;
+  }
+
+  if (c.name == payload_type_speex_nb.mime_type && c.clockrate == payload_type_speex_nb.clock_rate)
+  {
+	    LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Found this codec:name: " << c.name << ", rate: " << c.clockrate;
+	    return true;
+  }
+
+  //FIX: JJ - both iLBC and ILBC are OK!
+  if (c.name == "ILBC" || c.name == "iLBC")
+  {
+	  LOG(INFO) << "VueceMediaEngine::FindAudioCodec:Found a matched codec: ILBC!";
+	  return true;
+  }
+
+  LOG(LS_ERROR) << "VueceMediaEngine::FindAudioCodec:Cannot find this codec: " << c.name;
+  return false;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Implementation of VueceVoiceChannel.
+///////////////////////////////////////////////////////////////////////////
+VueceVoiceChannel::VueceVoiceChannel(VueceMediaEngine*eng)
+    : //pt_(-1),
+      iVueceAudioStream(0),
+      engine_(eng),
+      ring_stream_(0),
+      iChosenCodecIdx(-1),
+      bAudioStreamStarted(false)
+{
+
+	LOG(INFO) << "VueceMediaEngine::VueceVoiceChannel";
+
+  talk_base::Thread *thread = talk_base::ThreadManager::CurrentThread();
+  talk_base::SocketServer *ss = thread->socketserver();
+  aud_socket_.reset(ss->CreateAsyncSocket(SOCK_DGRAM));
+
+  // bind the socket to local port 3000, this is used to receive outgoing rtp pakcats
+  // sent from mediastreamer, libjingle then resends it to the network
+  aud_socket_->Bind(talk_base::SocketAddress("localhost", LOCAL_PORT_OUTGOING_AUDIO));
+  aud_socket_->SignalReadEvent.connect(this, &VueceVoiceChannel::OnIncomingData);
+
+}
+
+VueceVoiceChannel::~VueceVoiceChannel()
+{
+	LOG(INFO) << "VueceVoiceChannel::~VueceVoiceChannel";
+
+  fflush(stdout);
+  //StopRing();
+
+  bAudioStreamStarted = false;
+  bIsVoiceCodecSet = false;
+
+  if (iVueceAudioStream)
+  {
+	  LOG(INFO) << "VueceVoiceChannelx::~VueceVoiceChannel:Stopping audio stream";
+	  bAudioStreamStarted = false;
+
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+	  LOG(INFO) << ("STOPPING AUDIO STREAM ...");
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+
+	  audio_stream_stop(iVueceAudioStream);
+
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+	  LOG(INFO) << ("AUDIO STREAM STOPPED.");
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+
+  }
+
+	LOG(INFO) <<("VueceVideoChannel::~VueceVoiceChannel():Stopping local socket...");
+	aud_socket_->Close();
+	LOG(INFO) <<("VueceVideoChannel::~VueceVoiceChannel():Local socket closed!");
+
+}
+
+bool VueceVoiceChannel::SetSendCodecs(const std::vector<AudioCodec>& codecs) {
+
+	//---------------------------------------------------------------
+	//NOTE:
+	//1. If this is a video call, and if both sides have speex, we should use speex, so
+	// that we can enable echo cancellation for video call
+	//2. Otherwise we always choose the first matched codec
+	//------------------------------------------------------------
+
+  LOG(INFO) << "VueceVoiceChannelx::SetSendCodecs";
+
+  bool bDecided = true;
+  bool bFound = false;
+  bool bUseEchoCancellation = false;
+  bool bFoundSpeexNB = false;
+  bool bFoundSpeexWB = false;
+  bool bFoundILBC = false;
+  bool bFoundPCMU = false;
+  bool bFoundTelEvent = false;
+  bool bFoundAAC = false;
+
+  int iILBCIdx = -1;
+  int iSpeexWBIdx = -1;
+  int iSpeexNBIdx = -1;
+  int iPCMUIdx = -1;
+  int iTeleventIdx = -1;
+  int iAACIdx = -1;
+
+  iChosenCodecIdx = -1;
+
+  std::vector<AudioCodec>::const_iterator i;
+
+  //initialize mediaengine available codec/payload list
+  for (i = codecs.begin(); i < codecs.end(); i++) {
+
+    if (!engine_->FindAudioCodec(*i))
+      continue;
+
+    //found first matched codec is iLBC
+    if (engine_->have_ilbc && (i->name == "iLBC" || i->name == "ILBC") ) {
+      rtp_profile_set_payload(&av_profile, i->id, &payload_type_ilbc);
+      iILBCIdx = i->id;
+      bFoundILBC = true;
+    }
+
+    if(i->name == "AAC") {
+      rtp_profile_set_payload(&av_profile, i->id, &payload_type_vuece_aac);
+      iAACIdx = i->id;
+      bFoundAAC = true;
+    }
+
+    // NOTE: We probably only use ILBC for beta release
+    //found first matched codec is PCMU
+    if (i->id == 0)
+    {
+        rtp_profile_set_payload(&av_profile, 0, &payload_type_pcmu8000);
+        bFoundPCMU = true;
+        iPCMUIdx = i->id;
+    }
+
+  }// end of for loop
+
+  //decide which codec to use
+  if(iVideoStream->bIsVideoCall)
+  {
+
+	  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:this is a video call");
+	  //for better performance, we only use ilbc for video call
+
+	      if(bFoundILBC)
+		  {
+			  iChosenCodecIdx = iILBCIdx;
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:we will use iLBC.enable echo cancellation.");
+			  bUseEchoCancellation = true;
+		  }
+	      else if(bFoundSpeexNB)
+		  {
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:This is a video call and we found speex nb, enable echo cancellation.");
+			  bUseEchoCancellation = true;
+			  iChosenCodecIdx = iSpeexNBIdx;
+		  }
+		  else if(bFoundPCMU)
+		  {
+			  iChosenCodecIdx = iPCMUIdx;
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:we will use pcmu.");
+		  }
+		  else if(bFoundTelEvent)
+		  {
+			  iChosenCodecIdx = iTeleventIdx;
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:we will use telephone event.");
+		  }
+		  else if(bFoundSpeexWB)
+		  {
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:This is a video call and we found speex wb, enable echo cancellation.");
+			  bUseEchoCancellation = true;
+			  iChosenCodecIdx = iSpeexWBIdx;
+		  }
+		  else
+		  {
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:This is a video call but no speex found, disable echo cancellation, use whatever we found.");
+		  }
+
+  }
+  else
+  {
+	  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:this is a voice call.");
+
+		  bUseEchoCancellation = true;
+
+		  if(bFoundILBC)
+		  {
+			  iChosenCodecIdx = iILBCIdx;
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:we will use iLBC, enable echo cancellation.");
+		  }
+		  else if(bFoundSpeexWB)
+		  {
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:This is a voice call and we found speex wb, enable echo cancellation.");
+			  iChosenCodecIdx = iSpeexWBIdx;
+		  }
+		  else if(bFoundSpeexNB)
+		  {
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:This is a voice call and we found speex nb, enable echo cancellation.");
+			  iChosenCodecIdx = iSpeexNBIdx;
+		  }
+		  else if(bFoundPCMU)
+		  {
+			  iChosenCodecIdx = iPCMUIdx;
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:we will use pcmu.");
+		  }
+		  else if(bFoundTelEvent)
+		  {
+			  iChosenCodecIdx = iTeleventIdx;
+			  LOG(INFO) <<("VueceVoiceChannel::SetSendCodecs:we will use telephone event.");
+		  }
+
+  }
+
+  if(iChosenCodecIdx != -1)
+  {
+	  LOG(INFO) << "VueceVoiceChannelx::bIsVoiceCodecSet is set to true.";
+	  bIsVoiceCodecSet = TRUE;
+
+//	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+//	  LOG(INFO) << ("SetSendCodecs:Chose codec index: %d ", iChosenCodecIdx);//i->name << "/" << i->clockrate;
+//	  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+
+	  bFound = true;
+  }
+  else
+  {
+	  bIsVoiceCodecSet = false;
+	  bFound = false;
+  }
+
+  return bFound;
+}
+
+bool VueceVoiceChannel::SetPlayout(bool playout) {
+
+  //Note: Calling this method with true doesn't mean we can start audio stream, for an outgoing call
+  // this method is called before codec negotiation with a true value, so we need to check if codec is
+  // determined or not before starting audio stream
+
+  play_ = playout;
+
+  if(!playout){
+	  LOG(INFO) << "VueceVoiceChannel::SetPlayout:false";
+	  return true;
+  }
+
+  LOG(INFO) << "VueceVoiceChannel::SetPlayout:true";
+
+  if(!bIsVoiceCodecSet){
+	  LOG(WARNING) << "VueceVoiceChannel::Voice codec not determined yet, cannot start voice stream now.";
+	  return true;
+  }else{
+	  LOG(INFO) << "VueceVoiceChannel::Voice codec has been determined, we can start voice stream now.";
+	  if(bAudioStreamStarted){
+		  LOG(WARNING) << "VueceVoiceChannel::Voice steam already started.";
+		  return true;
+	  }else{
+
+		  LOG(INFO) << "VueceVoiceChannel::Starting voice stream with codec index: " << iChosenCodecIdx;
+
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("SetSendCodecs:Chose codec index: %d ", iChosenCodecIdx);//i->name << "/" << i->clockrate;
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("STARTING AUDIO STREAM ...");
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+
+		  LOG(INFO) << "Creating audio stream as a normal user.";
+
+		  iVueceAudioStream = StartFullAudioStream(
+							  &av_profile, //RTP profile
+							  LOCAL_RTP_PORT_AUDIO, // local port
+							  REMOTE_IP, // remote ip
+							  LOCAL_PORT_OUTGOING_AUDIO, // remote port
+							  iChosenCodecIdx, // payload type
+							  120, //Nominal audio jitter buffer size in milliseconds
+							  true//bUseEchoCancellation //echo_cancel: TODO use FALSE (0) to improve performance if this is a video call
+						  );
+
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("AUDIO STREAM STARTED!");
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+		  LOG(INFO) << ("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*");
+
+		  bAudioStreamStarted = true;
+
+		  LOG(INFO) << "VueceVoiceChannelx::Voice stream started.";
+	  }
+  }
+
+  return true;
+}
+
+bool VueceVoiceChannel::SetSend(SendFlags flag) {
+  mute_ = !flag;
+
+  LOG(INFO) << "VueceVoiceChannelx::SetSend:type: " << (int)flag;
+
+  return true;
+}
+
+void VueceVoiceChannel::OnPacketReceived(talk_base::Buffer* packet) {
+
+    //LOG(LS_VERBOSE) << "VueceVoiceChannel::OnPacketReceived";
+
+  const void* data = packet->data();
+  int len = packet->length();
+  memcpy(incomingAudioBuf, data, len);
+
+  /* We may receive packets with payload type 13: comfort noise. Linphone can't
+   * handle them, so let's ignore those packets.
+   */
+  int payloadtype = incomingAudioBuf[1] & 0x7f;
+  if (play_ && payloadtype != 13)
+  {
+	  //LOG(LS_VERBOSE) << "VueceVoiceChannel::OnPacketReceived:Payload type: " << payloadtype;
+	  aud_socket_->SendTo(incomingAudioBuf, len, talk_base::SocketAddress("localhost",LOCAL_RTP_PORT_AUDIO));
+  }
+  else
+  {
+	  //LOG(LS_WARNING) << "VueceVoiceChannel::OnPacketReceived 2";
+  }
+
+}
+
+void VueceVoiceChannel::StartRing(bool bIncomingCall)
+{
+}
+
+void VueceVoiceChannel::StopRing()
+{
+}
+
+void VueceVoiceChannel::OnIncomingData(talk_base::AsyncSocket *s)
+{
+  int len;
+  len = s->Recv(outgoingAudioBuf, sizeof(outgoingAudioBuf));
+  
+  //NOTE: We need to check the len of the packet at first.
+  if(len <= 0)
+  {
+	  return;
+  }
+  
+  talk_base::Buffer packet(outgoingAudioBuf, len);
+  if (network_interface_ && !mute_)
+  {
+//		LOG(INFO) <<("---------------------------------------------------------------------------------------------------");
+//		LOG(INFO) <<("SENDING AUDIO PACKET...");
+//		LOG(INFO) <<("---------------------------------------------------------------------------------------------------");
+	    network_interface_->SendPacket(&packet);
+  }
+
+}
+
+//#define VIDEO_ENABLED
+
+///////////////////////////////////////////////////////////////////////////
+// Implementation of VueceVideoChannel.
+///////////////////////////////////////////////////////////////////////////
+#ifdef VIDEO_ENABLED
+
+VueceVideoChannel::VueceVideoChannel()
+{
+	LOG(INFO) <<("VueceVideoChannel::VueceVideoChannel");
+	LOG(INFO) <<("---------------------------------------------------------------------------------------------------");
+	LOG(INFO) <<("------------------------- VueceVideoChannel::VueceVideoChannel:1-----------------------------");
+	LOG(INFO) <<("---------------------------------------------------------------------------------------------------");
+
+	talk_base::Thread *thread = talk_base::ThreadManager::CurrentThread();
+	talk_base::SocketServer *ss = thread->socketserver();
+
+	LOG(INFO) <<("VueceVideoChannel::VueceVideoChannel:2");
+
+	vid_socket_.reset(ss->CreateAsyncSocket(SOCK_DGRAM));
+	vid_socket_->Bind( talk_base::SocketAddress("localhost", LOCAL_PORT_OUTGOING_VIDEO));
+	vid_socket_->SignalReadEvent.connect(this, &VueceVideoChannel::OnIncomingData);
+	LOG(INFO) <<("VueceVideoChannel::VueceVideoChannel:3");
+
+	vid_socket_rtcp.reset(ss->CreateAsyncSocket(SOCK_DGRAM));
+	vid_socket_rtcp->Bind( talk_base::SocketAddress("localhost", LOCAL_PORT_OUTGOING_VIDEO+1));
+	vid_socket_rtcp->SignalReadEvent.connect(this, &VueceVideoChannel::OnIncomingDataRtcp);
+
+	bVidStreamStarted = FALSE;
+
+	OutgoingSignalDanger.connect(this, &VueceVideoChannel::OnDecodingErr);
+	LOG(INFO) <<("VueceVideoChannel::VueceVideoChannel:4");
+
+	videoFrameCounter = 0;
+
+	//TODO need to figure out if this is an outgoing call or incoming call
+	//if(bIsOutgoingCall)
+	///{
+
+		StartVideoStream();
+	//}
+
+	LOG(INFO) <<("VueceVideoChannel::VueceVideoChannel:5");
+
+}
+
+
+VueceVideoChannel::~VueceVideoChannel()
+{
+	LOG(INFO) << "VueceVideoChannel::Calling de-constructor ...";
+	if (video_stream_)
+	{
+		LOG(INFO) << "VueceVideoChannel::Calling video_stream_stop ...";
+		 video_stream_stop(video_stream_);
+	}
+
+	LOG(INFO) <<("VueceVideoChannel::~VueceVideoChannel():Stopping local socket...");
+	vid_socket_->Close();
+	LOG(INFO) <<("VueceVideoChannel::~VueceVideoChannel():Local socket closed!");
+
+}
+
+void VueceVideoChannel::OnDecodingErr()
+{
+	LOG(INFO) << "VueceVideoChannel::OnDecodingErr:iVidRtcpSeqNum: " << iVidRtcpSeqNum;
+	uint8 buf[12];
+	int i;
+
+	LOG(INFO) <<("Case is MS_VIDEO_DECODER_DECODING_ERRORS, we should request a new IDR frame here!");
+	/**
+	 *      0                   1                   2                   3
+			0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			|V=2|P|    RC   |   PT=RR=192   |             length            | header
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			|                              SSRC                             |
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			| Seq. nr       |    Reserved                                   |
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+		   Figure 3 - Syntax for the FIR message
+	 */
+
+	//linphone_call_send_vfu_request((LinphoneCall*) user_pointer);
+	memset(buf, 0, sizeof(buf));
+
+	buf[0] = 0x80;
+	buf[1] = 0xC0;
+	buf[2] = 0x00;
+	buf[3] = 0x03;
+
+	//SSRC
+	buf[4] = mySSRC[0];
+	buf[5] = mySSRC[1];
+	buf[6] = mySSRC[2];
+	buf[7] = mySSRC[3];
+
+	//seq number
+	buf[8] = iVidRtcpSeqNum++;
+
+	if(iVidRtcpSeqNum == 256)
+	{
+		iVidRtcpSeqNum = 0;
+	}
+
+	talk_base::Buffer packet(buf, sizeof(buf));
+	network_interface_->SendRtcp(&packet);
+
+}
+
+//The following coded was copied from linphonecall.c
+static void video_stream_event_cb(void *user_pointer, const MSFilter *f, const unsigned int event_id, const void *args){
+	LOG(INFO) <<("In linphonecall.c: video_stream_event_cb");
+	switch (event_id) {
+		case MS_VIDEO_DECODER_DECODING_ERRORS:
+		{
+			OutgoingSignalDanger();
+			break;
+		}
+
+		default:
+			LOG(INFO) <<("Unhandled event %i", event_id);
+			break;
+	}
+}
+
+void VueceVideoChannel::StartVideoStream()
+{
+	MSWebCam *cam=NULL;
+
+	static bool_t two_windows=FALSE;
+	MSVideoSize vs;
+	
+	if(bVidStreamStarted)
+	{
+		LOG(INFO) <<("StartVideoStream:Video stream already started! return now.");
+		LOG(LS_WARNING) << "StartVideoStream:Video stream already started! return now.";
+		return;
+	}
+
+
+//	vs.width =IMAGE_FRAME_WIDTH;
+//	vs.height=IMAGE_FRAME_HEIGHT;
+
+	vs.width = iVideoStream->width;
+	vs.height = iVideoStream->height;
+
+	LOG(INFO) <<("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+	LOG(INFO) <<("VueceVideoChannel::StartVideoStream");
+	LOG(INFO) <<("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+
+
+	LOG(INFO) << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+	LOG(INFO) << "VueceVideoChannel::StartVideoStream";
+	LOG(INFO) << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+
+	rtp_profile_set_payload(&av_profile, VUECE_RTP_PAYLOAD_TYPE_H264, &payload_type_h264);
+
+	LOG(LS_INFO) << "Using H264 as default";
+
+	video_stream_ = video_stream_new(LOCAL_RTP_PORT_VIDEO, false);
+
+	LOG(INFO) << "VueceVideoChannel::StartVideoStream:A";
+
+	video_stream_->eventcb = video_stream_event_cb;
+
+	LOG(INFO) << "VueceVideoChannel::StartVideoStream:A1";
+
+	video_stream_set_sent_video_size(video_stream_,vs);
+	video_stream_set_direction(video_stream_, VideoStreamSendRecv);
+
+#if defined(WIN32)
+	video_stream_set_display_filter_name(video_stream_, "VueceDisplayRedirector");
+#endif
+
+	LOG(INFO) << "VueceVideoChannel::StartVideoStream:A2";
+
+	video_stream_use_preview_video_window(video_stream_,two_windows);
+
+	iVideoStream->video_stream = video_stream_;
+
+	LOG(INFO) << "VueceVideoChannel::StartVideoStream:B";
+
+#if defined(WIN32)
+	cam = ms_web_cam_manager_get_cam(ms_web_cam_manager_get(), "Directshow capture: Microsoft LifeCam VX-1000");
+#endif
+
+	video_stream_start(
+			video_stream_,
+			&av_profile, //RTP profile
+			"127.0.0.1", // remote ip
+			LOCAL_PORT_OUTGOING_VIDEO, // remote port
+			LOCAL_PORT_OUTGOING_VIDEO+1,
+			VUECE_RTP_PAYLOAD_TYPE_H264, // payload type
+			120, //Nominal video jitter buffer size in milliseconds
+			cam //default cam
+			);
+
+	LOG(INFO) << "VueceVideoChannel::StartVideoStream:C";
+
+	bVidStreamStarted = TRUE;
+
+	LOG(INFO) <<("VueceVideoChannel::StartVideoStream:OK!");
+
+
+}
+
+bool VueceVideoChannel::SetSendCodecs(const std::vector<VideoCodec>& codecs) {
+  // TODO: Check the format of RTP dump input.
+	LOG(INFO) <<("VueceVideoChannel::SetSendCodecs:Use H.264");
+
+	//StartVideoStream();
+
+	//CODE COMMETED OUT HERE: We try to start the stream as early as possible
+	// otherwise we will miss the start frames from gmail!
+
+	//	bool first = true;
+//	static bool_t two_windows=FALSE;
+//	MSVideoSize vs;
+//	vs.width =IMAGE_FRAME_WIDTH;
+//	vs.height=IMAGE_FRAME_HEIGHT;
+//
+//	rtp_profile_set_payload(&av_profile, VUECE_RTP_PAYLOAD_TYPE_H264, &payload_type_h264);
+//
+//	if (first) {
+//		//VideoStreamDir dir=VideoStreamSendOnly;
+//		LOG(LS_INFO) << "Using H264 as default";
+//
+//		video_stream_ = video_stream_new(LOCAL_RTP_PORT_VIDEO, false);
+//
+//		video_stream_set_sent_video_size(video_stream_,vs);
+//		video_stream_use_preview_video_window(video_stream_,two_windows);
+//
+//		//TODO Get videowindow id here
+//
+//		//video_stream_set_native_window_id(video_stream_, lc->video_window_id);
+//		//libmsx264_init();
+//
+////		video_stream_set_direction (video_stream_, dir);
+//		video_stream_start(
+//				video_stream_,
+//				&av_profile, //RTP profile
+//				"127.0.0.1", // remote ip
+//				LOCAL_PORT_OUTGOING_VIDEO, // remot port
+//				LOCAL_PORT_OUTGOING_VIDEO+1,
+//				VUECE_RTP_PAYLOAD_TYPE_H264, // payload type
+//				250, //jitt_comp
+//				NULL //default cam
+//				);
+//
+//		first = false;
+//	}
+
+	return true;
+}
+
+bool VueceVideoChannel::SetSend(bool send) {
+  LOG(INFO) << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+  LOG(INFO) << "VueceVideoChannel::SetSend:Start playing!";
+  LOG(INFO) << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+  play_ = send;
+
+  if(play_)
+  {
+	 LOG(LS_VERBOSE) << "VueceVideoChannel::SetSend:play_=true";
+  }
+  else
+  {
+	  LOG(LS_VERBOSE) << "VueceVideoChannel::SetSend:play_=false";
+  }
+
+
+
+  return true;
+}
+
+void VueceVideoChannel::OnPacketReceived(talk_base::Buffer* packet) {
+   //LOG(INFO) << "VueceVideoChannel::OnPacketReceived";
+
+  char* data = packet->data();
+  int len = packet->length();
+
+  int i = 0, j=0;
+
+//  LOG(INFO) << "---------------------------------VueceVideoChannel::OnPacketReceived:Len: " << len;
+
+  int payloadtype = data[1] & 0x7f;
+
+//  LOG(LS_WARNING) << "VueceVideoChannel::OnPacketReceived:Payload type: " << payloadtype;
+//	if(!bSSRCSet)
+//	{
+//		//mySSRC
+//		mySSRC[0] = data[8];
+//		mySSRC[1] = data[9];
+//		mySSRC[2] = data[10];
+//		mySSRC[3] = data[11];
+//
+//		LOG(INFO) << "VueceVideoChannel::OnIncomingData:mySSRC set!";
+//
+//		bSSRCSet = TRUE;
+//
+//		RTPTime  t = 	RTPTime::CurrentTime();
+//		RTPRawPacket* rawPkt = new RTPRawPacket((uint8_t *)packet->data(), packet->length(), NULL, t, true);
+//		RTPPacket* pkt = new RTPPacket(*rawPkt);
+//		_localSSRC = pkt->GetSSRC();
+//		LOG(INFO) << "VueceVideoChannel::OnIncomingData:ssrc: " << _localSSRC;
+//	}
+
+
+  if (TRUE)
+  {
+
+		RTPTime  t = 	RTPTime::CurrentTime();
+		RTPRawPacket* rawPkt = new RTPRawPacket((uint8_t *)packet->data(), packet->length(), NULL, t, true);
+		RTPPacket* pkt = new RTPPacket(*rawPkt);
+
+		uint32_t ts = pkt->GetTimestamp();
+		int plt = (int)pkt->GetPayloadType();
+		int pktl = pkt->GetPacketLength();
+		int pll = pkt->GetPayloadLength();
+		int ext_len = pkt->GetExtensionLength();
+		int seq_num = pkt->GetSequenceNumber();
+		int csrc_count = pkt->GetCSRCCount();
+		uint32_t ssrc = pkt->GetSSRC();
+		bool marker = pkt->HasMarker();
+
+		int type = VueceDevVidUtils::getNALType(pkt->GetPayloadData()[0]);
+		int frameNum = VueceDevVidUtils::getSliceHeader_FrameNumber(pkt->GetPayloadData()[1]);
+		int firstMB = VueceDevVidUtils::getSliceHeader_FirstMBInSlice(pkt->GetPayloadData()[1]);
+		int newPktLen = 0;
+
+		uint8_t* pl = pkt->GetPayloadData();
+
+		//capture remote ssrc value
+		if(!bRemoteSSRCSet)
+		{
+			bRemoteSSRCSet = TRUE;
+			_remoteSSRC = ssrc;
+		}
+
+		//Enable following code for debugging.
+		//if(type == 7)
+		//{
+		//	LOG(LS_VERBOSE) << "******************************************************************************";
+		//	LOG(LS_VERBOSE) << "******************************************************************************";
+		//	LOG(LS_VERBOSE) << "*                      STARTING FRAMES ARE COMING!!!                         *";
+		//	LOG(LS_VERBOSE) << "******************************************************************************";
+		//	LOG(LS_VERBOSE) << "******************************************************************************";
+		//}
+
+		//if(type == 7 || type == 8 || type == 5)
+		//{
+		//	LOG(LS_VERBOSE) << "------------------------------------------------------------";
+		//	LOG(LS_VERBOSE) << "Received:PKT: PayloadType=" << plt << ", PktLen = " << pktl
+		//		<<", payloadLen: " << pll
+		//		<< ", NALType: " << type
+		//		<< ", frameNum = " << frameNum
+		//		<< ", timestamp = " << ts
+		//		<< ", firstMB = " << firstMB
+		//		<< ", ExtLen = " << ext_len
+		//		<< ", seqNum = " << seq_num
+		//		<< ", csrcCount = " << csrc_count
+		//		<< ", ssrc = " << ssrc
+		//		<< ", isMarkerSet = " << (marker?"yes":"no");
+		//	LOG(LS_VERBOSE) << " ------------------------------------------------------------";
+		//}
+
+
+	  //////////////////////////////////////////////////////////////
+	  // PAY ATTENTION!!!
+	  // We need to handle the RTP header extension first because mediastreamer doesn't handle it!
+	  // See http://tools.ietf.org/html/draft-ietf-avt-tfrc-profile-10 for details
+
+	  if(pkt->HasExtension())
+	  {
+//		  LOG(LS_WARNING) << "VueceVideoChannel::OnPacketReceived:Header extension detected!";
+
+		  for(i=0;i<12;i++)
+			  incomingVideoBuf[i]=data[i];
+
+		  //remove extension
+		  incomingVideoBuf[0] = 0x80;
+
+		  i=0;
+
+		  for(j=0; j<pll;i++,j++)
+			  incomingVideoBuf[i+12] = pl[j];
+
+		  newPktLen = pll+12;
+	  }
+	  else
+	  {
+		  memcpy(incomingVideoBuf, data, len);
+		  newPktLen = len;
+	  }
+
+//	  LOG(LS_INFO) << "Final payload len = " << newPktLen;
+//	  LOG(LS_INFO) << "The first 8 bytes of the payload: ";
+//
+//	  for(i=0; i<8;i++)
+//	  {
+//		  LOG(LS_INFO) << (int)pl[i];
+//	  }
+
+	  if (play_)
+	  {
+		  LOG(LS_INFO) << "play_ flag is true now";
+//		  	  vid_socket_->SendTo(incomingVideoBuf, newPktLen, talk_base::SocketAddress("localhost",LOCAL_RTP_PORT_VIDEO));
+	  }
+	  else
+	  {
+		  LOG(LS_INFO) << "play_ flag is false now";
+	  }
+
+
+	  vid_socket_->SendTo(incomingVideoBuf, newPktLen, talk_base::SocketAddress("localhost",LOCAL_RTP_PORT_VIDEO));
+
+  }
+
+}
+
+void VueceVideoChannel::OnRtcpReceived(talk_base::Buffer* packet)
+{
+	  char* data = packet->data();
+	  int len = packet->length();
+	  int i=0;
+	  int type = (int)data[1];
+
+      LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Len: %d, type: %d", len, type);
+
+	  if(type == 200){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a sender report");
+	  }else if(type == 201){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a receiver report");
+	  }else if(type == 202){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a SDES packet");
+	  }else if(type == 203){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a BYE packet");
+	  }else if(type == 204){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a APP packet");
+	  }else if(type == 205){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a RTPFB packet");
+	  }else if(type == 206){
+		  LOG(INFO) <<("VueceVideoChannel::OnRtcpReceived:Received a PSFB packet");
+	  }
+
+	 // vid_socket_rtcp->SendTo(data, len, talk_base::SocketAddress("localhost",LOCAL_RTP_PORT_VIDEO+1));
+
+}
+
+void VueceVideoChannel::OnIncomingData(talk_base::AsyncSocket *s)
+{
+
+	int len;
+	len = s->Recv(outGoingVideoBuf, sizeof(outGoingVideoBuf));
+	talk_base::Buffer packet(outGoingVideoBuf, len);
+
+	if (network_interface_ && play_)
+	{
+	  //LOG(INFO) << "---------------------------------VueceVideoChannel::OnIncomingData:Len: " << len;
+	  network_interface_->SendPacket(&packet);
+
+	  //capture local ssrc
+		if(!bSSRCSet)
+		{
+			bSSRCSet = TRUE;
+
+			RTPTime  t = 	RTPTime::CurrentTime();
+			RTPRawPacket* rawPkt = new RTPRawPacket((uint8_t *)packet.data(), packet.length(), NULL, t, true);
+			RTPPacket* pkt = new RTPPacket(*rawPkt);
+			_localSSRC = pkt->GetSSRC();
+		}
+
+	  videoFrameCounter++;
+
+	  //currently frame rate is 30 (1 second), so we try to send FIR every 3 seconds
+	  if(videoFrameCounter % 90 == 0)
+	  {
+			LOG(LS_VERBOSE) <<("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*");
+			LOG(LS_VERBOSE) <<("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*");
+			LOG(LS_VERBOSE) <<("Number of frames we have sent so far: %d", videoFrameCounter);
+			RequestFIR();
+			LOG(LS_VERBOSE) <<("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*");
+			LOG(LS_VERBOSE) <<("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*");
+	  }
+	}
+}
+
+void VueceVideoChannel::OnIncomingDataRtcp(talk_base::AsyncSocket *s)
+{
+
+	//JJ: Currently media engine doesn't send any rtcp packet
+//	char buf[512];
+//	int len,i;
+//	len = s->Recv(buf, sizeof(buf));
+//	talk_base::Buffer packet(buf, len);
+//
+//	LOG(INFO) <<("================================================================");
+//	LOG(INFO) <<("================================================================");
+//	LOG(INFO) <<("===============================================================");
+//	LOG(INFO) <<("VueceVideoChannel::OnIncomingDataRtcp:Len: %d", len);
+//	LOG(INFO) <<("================================================================");
+//	LOG(INFO) <<("================================================================");
+//	LOG(INFO) <<("================================================================");
+
+//
+//	for(i=0;i<len;i++)
+//	{
+//		LOG(INFO) <<("VueceVideoChannel::OnIncomingDataRtcp:data: %d", (int)buf[i] );
+//	}
+
+//	if (network_interface_ && play_) {
+//		network_interface_->SendRtcp(&packet);
+//	}
+}
+
+void VueceVideoChannel::RequestFIR()
+{
+
+	uint8 buf[20];
+	int i;
+
+	LOG(LS_VERBOSE) <<("VueceVideoChannel::RequestFIR, we should request a new IDR frame here!");
+
+	//===============================================================================
+	//Rtp FIR request code, doesn't work
+	/**
+	 *      0                   1                   2                   3
+			0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			|V=2|P|    RC   |   PT=RR=192   |             length            | header
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			|                              SSRC                             |
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			| Seq. nr       |    Reserved                                   |
+			+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+		   Figure 3 - Syntax for the FIR message
+	 */
+	//===============================================================================
+	//RTCP Fir request code
+	// refer to http://tools.ietf.org/html/draft-ietf-avt-avpf-ccm-01#section-4.3.1.1
+	// read section: 4.3.2.2
+	int pos = 0;
+	memset(buf, 0, sizeof(buf));
+
+	buf[0] = (uint8)0x84;
+	buf[1] = (uint8)206;
+	buf[2] = (uint8)0;
+	buf[3] = (uint8)4;
+
+    // Add our own SSRC
+//	uint32_t* ptr = reinterpret_cast<uint32_t*>(buf+4);
+//    ptr[0] = _localSSRC;
+
+	buf[4] = static_cast<uint8>(_localSSRC>>24);
+	buf[5] = static_cast<uint8>(_localSSRC>>16);
+	buf[6] = static_cast<uint8>(_localSSRC>>8);
+	buf[7] = static_cast<uint8>(_localSSRC);
+
+    // RFC 5104     4.3.1.2.  Semantics
+    // SSRC of media source
+    pos = 8;
+    buf[pos++]=(uint8)0;
+    buf[pos++]=(uint8)0;
+    buf[pos++]=(uint8)0;
+    buf[pos++]=(uint8)0;
+
+    // Additional Feedback Control Information (FCI)
+//	uint32_t* ptr1 = reinterpret_cast<uint32_t*>(buf+pos);
+//    ptr1[0] = _remoteSSRC;
+//    pos += 4;
+
+	buf[pos++] = static_cast<uint8>(_remoteSSRC>>24);
+	buf[pos++] = static_cast<uint8>(_remoteSSRC>>16);
+	buf[pos++] = static_cast<uint8>(_remoteSSRC>>8);
+	buf[pos++] = static_cast<uint8>(_remoteSSRC);
+
+
+    buf[pos++]=(uint8)(_sequenceNumberFIR);
+    buf[pos++]=(uint8)0;
+    buf[pos++]=(uint8)0;
+    buf[pos++]=(uint8)0;
+
+    _sequenceNumberFIR++;
+
+    if(_sequenceNumberFIR % 256 == 0){
+    	_sequenceNumberFIR = 0;
+    }
+
+	talk_base::Buffer packet(buf, sizeof(buf));
+	network_interface_->SendRtcp(&packet);
+
+}
+
+
+#endif
+
+}
