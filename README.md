@@ -30,7 +30,7 @@ The website hosting the applications is also a GitHub open-source project - [vue
 ## Getting Started
 
 ### Prerequisites
-* Please get familiar with the official Google libjingle
+* Please get familiar with the official [Google libjingle](https://developers.google.com/talk/libjingle/developer_guide)
 * **vuece-libjingle** needs to be compiled in a Linux environment using [Android NDK](https://developer.android.com/ndk/) command line build tool. Since my host environment is Windows, I used **Virtualbox** with **Ubuntu** to develop and build the native library.
 
 
