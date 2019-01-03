@@ -21,7 +21,7 @@ We decided to combine the existing functionalities provided by the original libj
  
 The output of this project include following three modules:
 * **vuece-libjingle library** - The core library that drives the real-time streaming protocol
-* **Vuece Music Controller** - an Android application that uses vuece-libjingle as the streaming engine and interacts with user like a normal music player, user guide and screenshots can be found [here](http://www.vuece.com/hub.html)
+* **Vuece Music Controller** - an Android application that uses vuece-libjingle as the streaming engine and interacts with user like a normal music player, user guide and screenshots can be found here [Vuece Hub User Guide](http://www.vuece.com/hub.html)
 * **Vuecd Hub** - A windows application which hosts and streams music files using vuece-libjingle, detailed user guide and screenshots can be found here [Vuece Music User Guide](http://www.vuece.com/music.html)
 
 The website hosting the applications is also a GitHub open-source project - [vuece.github.io](https://github.com/vuece/vuece.github.io)
