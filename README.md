@@ -33,16 +33,15 @@ The website hosting the applications is also a GitHub open-source project - [vue
 * Please get familiar with the official [Google libjingle](https://developers.google.com/talk/libjingle/developer_guide)
 * **vuece-libjingle** needs to be compiled in a Linux environment using [Android NDK](https://developer.android.com/ndk/) command line build tool. Since my host environment is Windows, I used **Virtualbox** with **Ubuntu** to develop and build the native library.
 
-
 ### Source Code and Vuece Stream Engine
 * The [Android.mk file](libjingle/Android.mk) contains all compilation configurations and listing of source files that will be compiled into the library
 * Most of the customized source files use 'Vuece' has the file name prefix
-* You might be interested in the following customized components under *talk/session/fileshare/* directory
+* You might be interested in the following customized components under [libjingle/talk/session/fileshare/](libjingle/talk/session/fileshare/) directory
     * **Vuece Stream Engine** - This module chains 3 components to form a channel that the real-time data will flow through 
     * **Vuece Media Data Bumper** - continuously reads encoded audio data frames and 'bumps' them to it's adjacent module for decoding, frame by frame
     * **Vuece AAC Decoder** - continuously reads and decodes frames received from the data bumper, the decoded frames flows into its adjacent module for audio frame writing
     * **Vuece Audio Writer** - the end of the streaming chain, it writes the audio data to the Audio Player through JNI callback
-
+    * **Utility Classes** - Lots of utility classes were developed to efficiently use other open source libraries like *sqlite*, *ffmpeg*
 
 ## Authors
 Jingjing Sun - please drop a comment or contact me via [Linkedin](https://www.linkedin.com/in/jjsun001) if you need any further information.
