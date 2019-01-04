@@ -65,18 +65,6 @@ void* VueceMediaDBScannerThread::Thread()
 
 	dbMgr->UpdateMediaDB(iMediaItemList);
 
-	//TEST CODE, REMOVE LATER
-//	VueceMediaItemList* list = dbMgr->BrowseMediaItem(test_uri);
-//
-//	if(list != NULL)
-//	{
-//		std::ostringstream os;
-//		VueceWinUtilities::GenerateJsonMsg(list, os);
-//		LOG(INFO) << "VueceMediaDBScannerThread - Final json message: " << os.str();
-//
-//		delete list;
-//	}
-
 	dbMgr->Close();
 
 	delete dbMgr;
