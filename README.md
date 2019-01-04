@@ -37,11 +37,11 @@ The website hosting the applications is also a GitHub open-source project - [vue
 * The [Android.mk file](libjingle/Android.mk) contains all compilation configurations and listing of source files that will be compiled into the library
 * Most of the customized source files use 'Vuece' has the file name prefix
 * You might be interested in the following customized components under [libjingle/talk/session/fileshare/](libjingle/talk/session/fileshare/) directory
-    * **Vuece Stream Engine** - This module chains 3 components to form a channel that the real-time data will flow through 
+ * **Vuece Stream Engine** - This module chains 3 components to form a channel that the real-time data will flow through 
     * **Vuece Media Data Bumper** - continuously reads encoded audio data frames and 'bumps' them to it's adjacent module for decoding, frame by frame
     * **Vuece AAC Decoder** - continuously reads and decodes frames received from the data bumper, the decoded frames flows into its adjacent module for audio frame writing
     * **Vuece Audio Writer** - the end of the streaming chain, it writes the audio data to the Audio Player through JNI callback
-    * **Utility Classes** - Lots of utility classes were develope under folder [client-core](client-core) to efficiently use other open source libraries like *sqlite*, *ffmpeg*, *CImage*, *TagLib*, *glog*, etc.
+ * **Utility Classes** - Lots of utility classes were develope under folder [client-core](client-core) to efficiently use other open source libraries like *sqlite*, *ffmpeg*, *CImage*, *TagLib*, *glog*, etc.
 
 ## Authors
 Jingjing Sun - please drop a comment or contact me via [Linkedin](https://www.linkedin.com/in/jjsun001) if you need any further information.
